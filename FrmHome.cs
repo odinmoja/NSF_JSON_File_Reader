@@ -135,7 +135,7 @@ namespace NSF_JSON_Reader
                         if (existingAwardIds.Contains(myAward.NSFAwdId))
                         {
                        
-                            continue;
+                         //   continue;
                            
                         }
 
@@ -434,44 +434,85 @@ namespace NSF_JSON_Reader
 
                       //  context.SaveChanges();
 
+                        //if (batchcount >= batchSize)
+                        //{
+                        //    context.SaveChanges();
+                        //    context.Dispose();
+                        //    context = new ApplicationDbContext(nsfDBConnectString);
+                        //    batchcount = 0;
+                        //    pendingInstitutions.Clear();
+                        //}
+
+
+
+                        //For  Logging
+
                         if (batchcount >= batchSize)
-                        {
-                            context.SaveChanges();
+                        {                                           
+
+                            try
+                            {
+                                context.SaveChanges();
+                            }
+                            catch (DbUpdateException ex)
+                            {
+                                string errorDetails =
+                                    $"Outer: {ex.Message}\n" +
+                                    $"Inner 1: {ex.InnerException?.Message}\n\n";
+                                //$"Inner 2: {ex.InnerException?.InnerException?.Message}\n\n";
+                                int totalFailedDBTransactions = 0;
+
+
+                                foreach (var entry in ex.Entries)
+                                {
+                                    errorDetails += $"Problem entity: {entry.Entity.GetType().Name}\n";
+
+                                    var nsfAwdId = entry.Properties.FirstOrDefault(p => p.Metadata.Name == "NSFAwdId");
+
+                                    if (nsfAwdId != null)
+                                    {
+                                        errorDetails += $"  NSFAwdId: {nsfAwdId.CurrentValue}\n";
+                                        errorDetails += "Check file named " + nsfAwdId.CurrentValue + ".JSON\n"; 
+                                    }
+
+                                    /*This goes through every property  of every entry. We don't need this now
+                                      We just need the NSFAwdID since that is the name of each corresponding 
+                                    JSON  file.*/
+                                    //foreach (var prop in entry.Properties)
+                                    //{
+                                    //    errorDetails += $"  {prop.Metadata.Name}: {prop.CurrentValue}\n";
+                                    //}
+                                    errorDetails += "---\n";
+                                    totalFailedDBTransactions++;
+                                    if(totalFailedDBTransactions >= 10)
+                                    {
+                                        errorDetails += "Note:These are only the first 10 failed database transactions.\n";
+                                        errorDetails += "Depending on batch size there could be 100s. Error reports truncated for brevity \n";
+                                        errorDetails += "Actual total errors number: " + ex.Entries.Count;
+                                        break;
+                                    }
+                                }
+                                /*Ok I am making an executive design decision here.
+                                 I am commenting out the filw writing logic and replacing it simply with a formatted
+                                string which will be output  which will be shown in a mesage box. I am doing this 
+                                for 2 reason.
+                                1) It circumvents  dealing with file IO stuff and the complicatiosn that come with
+                                that for now.
+                                2) If a failure occurs Iw ant it to be loud and immediate to the user. Writing it
+                                to text allows things to fail a little more quietly.*/
+
+                                //File.AppendAllText(@"D:\MyLogs\error_log.txt", errorDetails);
+                                //MessageBox.Show("Save failed - check C:\\MyLogs\\error_log.txt for details");
+                                MessageBox.Show(errorDetails, "Error", MessageBoxButtons.OK, MessageBoxIcon.Error);
+                                throw;
+                            }
                             context.Dispose();
                             context = new ApplicationDbContext(nsfDBConnectString);
                             batchcount = 0;
                             pendingInstitutions.Clear();
                         }
 
-
-
-                        //For  Logging
-
-                        //try
-                        //{
-                        //    context.SaveChanges();
-                        //}
-                        //catch (DbUpdateException ex)
-                        //{
-                        //    string errorDetails =
-                        //        $"Outer: {ex.Message}\n" +
-                        //        $"Inner 1: {ex.InnerException?.Message}\n" +
-                        //        $"Inner 2: {ex.InnerException?.InnerException?.Message}\n\n";
-
-                        //    foreach (var entry in ex.Entries)
-                        //    {
-                        //        errorDetails += $"Problem entity: {entry.Entity.GetType().Name}\n";
-                        //        foreach (var prop in entry.Properties)
-                        //        {
-                        //            errorDetails += $"  {prop.Metadata.Name}: {prop.CurrentValue}\n";
-                        //        }
-                        //        errorDetails += "---\n";
-                        //    }
-
-                        //    File.AppendAllText(@"D:\MyLogs\error_log.txt", errorDetails);
-                        //    MessageBox.Show("Save failed - check C:\\MyLogs\\error_log.txt for details");
-                        //    throw;
-                        //}
+                    
 
                         folderProjects.Add(myAward);
 
@@ -496,7 +537,7 @@ namespace NSF_JSON_Reader
                 MessageBox.Show("Error: " + ex.Message +"\n" +"\n"
                     +"Error happened while processing file " + currentFileBeingProcessed  + "\n"
                     +"The culprit file name is only accurate if you chose 0 as a batch size or else it" +
-                    "could be any file in the batch");
+                    "could be any file in the batch.");
 
             }
         }
